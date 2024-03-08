@@ -2,50 +2,51 @@ const getState = ({ getStore, getActions, setStore }) => {
 	return {
 		store: {
 			message: null,
-			demo: [
-				{
-					title: "FIRST",
-					background: "white",
-					initial: "white"
-				},
-				{
-					title: "SECOND",
-					background: "white",
-					initial: "white"
-				}
-			]
+			userInfo: [],
+			demo: []
 		},
 		actions: {
-			// Use getActions to call a function within a fuction
-			exampleFunction: () => {
-				getActions().changeColor(0, "green");
-			},
-
-			getMessage: async () => {
+			apiFetch: async(email, pass, page) => {
 				try{
-					// fetching data from the backend
-					const resp = await fetch(process.env.BACKEND_URL + "/api/hello")
-					const data = await resp.json()
-					setStore({ message: data.message })
-					// don't forget to return something, that is how the async resolves
-					return data;
+					const resp = await fetch(process.env.BACKEND_URL + "/api/"+ page, {
+						method: "POST",
+						headers: {"Content-Type": "application/json"},
+						body: JSON.stringify({email: email, password: pass})
+					});
+					const data = await resp.json();
+					if (page=="Login" && resp.status==200) localStorage.setItem("jwt-token", data.token);
+					return {code: resp.status, data};
 				}catch(error){
-					console.log("Error loading message from backend", error)
+					console.log("Error in login", error)
 				}
 			},
-			changeColor: (index, color) => {
-				//get the store
-				const store = getStore();
-
-				//we have to loop the entire demo array to look for the respective index
-				//and change its color
-				const demo = store.demo.map((elm, i) => {
-					if (i === index) elm.background = color;
-					return elm;
-				});
-
-				//reset the global store
-				setStore({ demo: demo });
+			getUserInfo: async() => {
+				try{
+					const token = localStorage.getItem('jwt-token');
+					if (token){
+						const resp = await fetch(process.env.BACKEND_URL + "/api/protected", {
+							method: "GET",
+							headers: {
+								"Content-Type": "application/json",
+								"Authorization": 'Bearer '+ token
+							}
+						});
+						if(!resp.ok) throw Error("There was a problem in the login request");
+						if(resp.status === 403){
+							throw ("Missing or invalid token");
+						}
+						const data = await resp.json();
+						setStore({ userInfo: data })
+					} else {
+						return ({"message": "No token"})
+					}
+				}catch(error){
+					console.log("Error loading data", error)
+				}
+			},
+			logout: () =>{
+				localStorage.removeItem("jwt-token");
+				setStore({ userInfo: []});
 			}
 		}
 	};
